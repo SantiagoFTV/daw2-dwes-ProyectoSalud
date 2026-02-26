@@ -1,0 +1,24 @@
+# Portal de Salud - Configuración Apache Simplificada
+
+# Permitir acceso normal a todos los archivos
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
+
+# Prevenir listado de directorios
+Options -Indexes
+
+# Cabeceras de seguridad
+<IfModule mod_headers.c>
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type"
+</IfModule>
+
+# Minimizar errores mostrados
+php_flag display_errors Off
+php_value error_reporting E_ALL
+
+# Aumentar tiempos de timeout para APIs externas
+php_value max_execution_time 30
+php_value default_socket_timeout 10
