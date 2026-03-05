@@ -1,4 +1,4 @@
-# Portal de Salud - Configuración Apache Simplificada
+# Portal de Salud - Configuración Apache Optimizada para Rendimiento
 
 # Permitir acceso normal a todos los archivos
 <IfModule mod_authz_core.c>
@@ -8,17 +8,37 @@
 # Prevenir listado de directorios
 Options -Indexes
 
-# Cabeceras de seguridad
+# Habilitar compresión GZIP para mejor rendimiento
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# Cache de archivos estáticos
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+</IfModule>
+
+# Cabeceras de seguridad y CORS
 <IfModule mod_headers.c>
     Header set Access-Control-Allow-Origin "*"
     Header set Access-Control-Allow-Methods "GET, POST, OPTIONS"
     Header set Access-Control-Allow-Headers "Content-Type"
+    
+    # Cache en navegador para CSS y JS
+    <FilesMatch "\.(css|js)$">
+        Header set Cache-Control "max-age=604800, public"
+    </FilesMatch>
 </IfModule>
 
 # Minimizar errores mostrados
 php_flag display_errors Off
 php_value error_reporting E_ALL
 
-# Aumentar tiempos de timeout para APIs externas
-php_value max_execution_time 30
-php_value default_socket_timeout 10
+# Optimizar tiempos y memoria para mejor rendimiento
+php_value max_execution_time 15
+php_value default_socket_timeout 5
+php_value memory_limit 128M

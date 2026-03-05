@@ -1,33 +1,29 @@
+﻿// Configuración global
+const API_BASE = '/ProyectoSalud';
+
 // Variables globales
 let map = null;
-let markers = [];
+let markersLayer = null;
 
-// Inicialización al cargar la página
+// Inicialización
 document.addEventListener('DOMContentLoaded', function() {
     initTabs();
     initMap();
-    attachEventListeners();
+    loadWHOData();
+    loadSpainData();
     updateLastUpdateTime();
 });
 
-// Inicializar sistema de pestañas
+// Sistema de pestañas
 function initTabs() {
-    const tabButtons = document.querySelectorAll('.tab-button');
-    const tabContents = document.querySelectorAll('.tab-content');
-
-    tabButtons.forEach(button => {
+    document.querySelectorAll('.tab-button').forEach(button => {
         button.addEventListener('click', function() {
             const tabName = this.getAttribute('data-tab');
-            
-            // Remover active de todos los botones y contenidos
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            tabContents.forEach(content => content.classList.remove('active'));
-            
-            // Agregar active al elemento clickeado
+            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             this.classList.add('active');
             document.getElementById(tabName).classList.add('active');
             
-            // Inicializar mapa si es necesario
             if (tabName === 'mapa' && map) {
                 setTimeout(() => map.invalidateSize(), 300);
             }
@@ -35,254 +31,150 @@ function initTabs() {
     });
 }
 
-// Inicializar mapa con OpenStreetMap
+// Inicializar mapa
 function initMap() {
-    map = L.map('map').setView([40.4168, -3.7038], 12); // Madrid
-
-    // Agregar capa de OpenStreetMap
+    map = L.map('map').setView([40.4168, -3.7038], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        attribution: '&copy; OpenStreetMap contributors',
         maxZoom: 19
     }).addTo(map);
-
-    // Agregar marcadores de ejemplo (hospitales en Madrid)
-    addSanitaryMarkers();
+    
+    markersLayer = L.layerGroup().addTo(map);
+    
+    // Cargar hospitales desde el servidor PHP (OpenStreetMap Overpass API)
+    loadHospitalsFromServer();
 }
 
-// Agregar marcadores de centros sanitarios
-function addSanitaryMarkers() {
-    const hospitals = [
-        {
-            lat: 40.4530,
-            lng: -3.6883,
-            name: 'Hospital Universitario La Paz',
-            address: 'Paseo de la Castellana, 261',
-            type: 'Hospital General'
-        },
-        {
-            lat: 40.4265,
-            lng: -3.7282,
-            name: 'Hospital Clínico San Carlos',
-            address: 'C/ Profesor Martín Lagos, s/n',
-            type: 'Hospital Universitario'
-        },
-        {
-            lat: 40.3900,
-            lng: -3.8272,
-            name: 'Hospital Fundación Jiménez Díaz',
-            address: 'Av. Reyes Católicos, 2',
-            type: 'Hospital Privado'
-        },
-        {
-            lat: 40.4118,
-            lng: -3.6243,
-            name: 'Hospital 12 de Octubre',
-            address: 'Av. de Córdoba, s/n',
-            type: 'Hospital General'
-        },
-        {
-            lat: 40.4368,
-            lng: -3.6836,
-            name: 'Centro de Salud Pública',
-            address: 'Madrid Centro',
-            type: 'Centro de Salud'
-        }
-    ];
-
-    hospitals.forEach(hospital => {
-        const icon = L.icon({
-            iconUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNCIgZmlsbD0iI2U3NGMzYyIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuMWVtIiBmaWxsPSJ3aGl0ZSIgZm9udC1zaXplPSIyMCIgZm9udC13ZWlnaHQ9ImJvbGQiPisrPC90ZXh0Pjwvc3ZnPg==',
-            iconSize: [32, 32],
-            iconAnchor: [16, 16]
+// Cargar hospitales desde servidor
+function loadHospitalsFromServer() {
+    const mapInfo = document.getElementById('map-info');
+    mapInfo.innerHTML = '<p><i class="fas fa-spinner fa-spin"></i> Cargando centros sanitarios desde OpenStreetMap...</p>';
+    
+    fetch(API_BASE + '/php/api_openstreetmap.php?lat=40.4168&lon=-3.7038&radius=10000')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data.hospitals) {
+                markersLayer.clearLayers();
+                
+                data.data.hospitals.forEach(h => {
+                    const marker = L.circleMarker([h.lat, h.lon], {
+                        radius: 8,
+                        fillColor: '#e74c3c',
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 0.8,
+                        fillOpacity: 0.8
+                    });
+                    
+                    marker.bindPopup(`
+                        <b>${h.name}</b><br>
+                        <i>${h.type}</i><br>
+                        ${h.address}
+                    `);
+                    
+                    marker.addTo(markersLayer);
+                });
+                
+                mapInfo.innerHTML = `
+                    <p><i class="fas fa-check-circle" style="color: #27ae60;"></i> 
+                    Se encontraron <strong>${data.count}</strong> centros sanitarios en Madrid (radio de 10km).</p>
+                    <p style="margin-top: 10px; font-size: 0.9em; color: #666;">
+                    <i class="fas fa-info-circle"></i> Datos obtenidos desde OpenStreetMap usando Overpass API (procesado en servidor PHP con patrón MVC).</p>
+                `;
+            } else {
+                mapInfo.innerHTML = '<p style="color: #e74c3c;"><i class="fas fa-exclamation-triangle"></i> Error: ' + (data.error || 'No se pudieron cargar los hospitales') + '</p>';
+            }
+        })
+        .catch(error => {
+            mapInfo.innerHTML = '<p style="color: #e74c3c;"><i class="fas fa-exclamation-triangle"></i> Error de conexión: ' + error.message + '</p>';
+            console.error('Error:', error);
         });
-
-        const marker = L.marker([hospital.lat, hospital.lng], { icon: icon })
-            .addTo(map)
-            .bindPopup(`
-                <div style="font-family: Arial, sans-serif;">
-                    <strong style="color: #2c3e50; font-size: 1.1em;">${hospital.name}</strong>
-                    <p style="margin: 8px 0 0 0; color: #666;">
-                        <i class="fas fa-map-marker-alt"></i> ${hospital.address}<br>
-                        <i class="fas fa-hospital"></i> ${hospital.type}
-                    </p>
-                </div>
-            `);
-
-        markers.push(marker);
-    });
 }
 
-// Adjuntar escuchadores de eventos
-function attachEventListeners() {
-    document.getElementById('btn-cargar-who')?.addEventListener('click', loadWHOData);
-    document.getElementById('btn-actualizar-who')?.addEventListener('click', loadWHOData);
-    document.getElementById('btn-cargar-spain')?.addEventListener('click', loadSpainData);
-}
-
-// Cargar datos de OMS (WHO)
+// Cargar datos WHO
 function loadWHOData() {
     const container = document.getElementById('who-container');
     const loading = document.getElementById('who-loading');
-    const button = document.getElementById('btn-cargar-who');
 
-    // Mostrar loading
     loading.style.display = 'flex';
     container.innerHTML = '';
-    button.disabled = true;
 
-    // Llamar al backend PHP
-    fetch('/ProyectoSalud/php/api_who.php')
-        .then(response => {
-            if (!response.ok) throw new Error('Error en la respuesta del servidor: ' + response.status);
-            return response.text().then(text => {
-                try {
-                    return JSON.parse(text);
-                } catch (e) {
-                    console.error('Respuesta no válida:', text);
-                    throw new Error('Respuesta inválida del servidor: ' + text.substring(0, 100));
-                }
-            });
-        })
+    fetch(API_BASE + '/php/api_who.php')
+        .then(response => response.json())
         .then(data => {
             loading.style.display = 'none';
-            button.disabled = false;
 
-            if (data.success) {
-                displayWHOData(data.data);
+            if (data.success && data.data.indicators) {
+                let html = '<div class="info-box" style="margin-bottom: 20px;">';
+                html += '<p><i class="fas fa-info-circle"></i> <strong>Indicadores de salud global</strong> obtenidos de la API oficial de la OMS (procesado por Modelo MVC).</p>';
+                html += '<p>Total de indicadores: <strong>' + data.count + '</strong></p>';
+                html += '</div>';
+                
+                html += '<table class="data-table"><thead><tr><th>País</th><th>Indicador</th><th>Valor</th><th>Año</th></tr></thead><tbody>';
+                data.data.indicators.forEach(ind => {
+                    html += `<tr><td>${ind.region}</td><td>${ind.name}</td><td><strong>${ind.value}</strong></td><td>${ind.year}</td></tr>`;
+                });
+                html += '</tbody></table>';
+                container.innerHTML = html;
                 updateLastUpdateTime();
-                showBtn('btn-actualizar-who');
             } else {
-                showError(container, data.error || 'Error al cargar los datos de OMS');
+                container.innerHTML = '<div class="alert alert-error">Error: ' + (data.error || 'No hay datos disponibles') + '</div>';
             }
         })
         .catch(error => {
             loading.style.display = 'none';
-            button.disabled = false;
+            container.innerHTML = '<div class="alert alert-error">Error de conexión: ' + error.message + '</div>';
             console.error('Error:', error);
-            showError(container, '❌ Error de conexión: ' + error.message);
         });
 }
 
-// Mostrar datos de OMS
-function displayWHOData(data) {
-    const container = document.getElementById('who-container');
-    
-    let html = '<div class="alert alert-success"><i class="fas fa-check-circle"></i> Datos de OMS cargados correctamente</div>';
-    
-    if (data.indicators && data.indicators.length > 0) {
-        html += '<table class="data-table"><thead><tr><th>País</th><th>Indicador</th><th>Valor</th><th>Año</th></tr></thead><tbody>';
-        
-        data.indicators.forEach(indicator => {
-            html += `<tr>
-                <td>${indicator.region}</td>
-                <td>${indicator.name}</td>
-                <td><strong>${indicator.value}</strong></td>
-                <td>${indicator.year}</td>
-            </tr>`;
-        });
-        
-        html += '</tbody></table>';
-    }
-    
-    container.innerHTML = html;
-}
-
-// Cargar datos de España
+// Cargar datos España
 function loadSpainData() {
     const container = document.getElementById('spain-container');
     const loading = document.getElementById('spain-loading');
-    const button = document.getElementById('btn-cargar-spain');
 
     loading.style.display = 'flex';
     container.innerHTML = '';
-    button.disabled = true;
 
-    fetch('/ProyectoSalud/php/api_salud_gob.php')
-        .then(response => {
-            if (!response.ok) throw new Error('Error en la respuesta del servidor: ' + response.status);
-            return response.text().then(text => {
-                try {
-                    return JSON.parse(text);
-                } catch (e) {
-                    console.error('Respuesta no válida:', text);
-                    throw new Error('Respuesta inválida del servidor: ' + text.substring(0, 100));
-                }
-            });
-        })
+    fetch(API_BASE + '/php/api_salud_gob.php')
+        .then(response => response.json())
         .then(data => {
             loading.style.display = 'none';
-            button.disabled = false;
 
-            if (data.success) {
-                displaySpainData(data.data);
+            if (data.success && data.data.health_datasets) {
+                let html = '<div class="info-box" style="margin-bottom: 20px;">';
+                html += '<p><i class="fas fa-info-circle"></i> <strong>Conjuntos de datos sobre salud</strong> disponibles en el portal de datos abiertos de España (procesado por Modelo MVC).</p>';
+                html += '<p>Total de datasets encontrados: <strong>' + data.count + '</strong></p>';
+                html += '</div>';
+                
+                html += '<table class="data-table"><thead><tr><th>Título</th><th>Descripción</th><th>Publicador</th><th>Última Modificación</th></tr></thead><tbody>';
+                data.data.health_datasets.forEach(dataset => {
+                    html += `<tr>
+                        <td><strong>${dataset.title}</strong></td>
+                        <td>${dataset.description}</td>
+                        <td>${dataset.publisher}</td>
+                        <td>${dataset.modified}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                container.innerHTML = html;
                 updateLastUpdateTime();
             } else {
-                showError(container, data.error || 'Error al cargar los datos de España');
+                container.innerHTML = '<div class="alert alert-error">Error: ' + (data.error || 'No hay datos disponibles') + '</div>';
             }
         })
         .catch(error => {
             loading.style.display = 'none';
-            button.disabled = false;
+            container.innerHTML = '<div class="alert alert-error">Error de conexión: ' + error.message + '</div>';
             console.error('Error:', error);
-            showError(container, '❌ Error de conexión: ' + error.message);
         });
 }
 
-// Mostrar datos de España
-function displaySpainData(data) {
-    const container = document.getElementById('spain-container');
-    
-    let html = '<div class="alert alert-success"><i class="fas fa-check-circle"></i> Datos de España cargados correctamente</div>';
-    
-    if (data.healthcare_facilities) {
-        html += '<table class="data-table"><thead><tr><th>Hospital</th><th>Tipo</th><th>Ubicación</th><th>Estado</th></tr></thead><tbody>';
-        
-        data.healthcare_facilities.forEach(facility => {
-            const statusClass = facility.status === 'Activo' ? 'status-active' : 'status-planning';
-            html += `<tr>
-                <td>${facility.name}</td>
-                <td>${facility.type}</td>
-                <td>${facility.location}</td>
-                <td><span class="status ${statusClass}">${facility.status}</span></td>
-            </tr>`;
-        });
-        
-        html += '</tbody></table>';
-    }
-    
-    container.innerHTML = html;
-}
-
-// Mostrar errores
-function showError(container, message) {
-    container.innerHTML = `<div class="alert alert-error">
-        <i class="fas fa-exclamation-circle"></i> ${message}
-    </div>`;
-}
-
-// Mostrar/ocultar botón
-function showBtn(btnId) {
-    const btn = document.getElementById(btnId);
-    if (btn) {
-        btn.style.display = 'inline-flex';
-    }
-}
-
-// Actualizar hora de última actualización
+// Actualizar hora
 function updateLastUpdateTime() {
     const lastUpdateElement = document.getElementById('last-update');
-    const now = new Date();
-    lastUpdateElement.textContent = now.toLocaleString('es-ES', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-    });
-}
-
-// Función para formatear números
-function formatNumber(num) {
-    return new Intl.NumberFormat('es-ES').format(num);
+    if (lastUpdateElement) {
+        const now = new Date();
+        lastUpdateElement.textContent = now.toLocaleString('es-ES');
+    }
 }

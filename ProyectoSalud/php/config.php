@@ -4,13 +4,16 @@
  * Configuración común y utilidades
  */
 
+// Aumentar límite de memoria para APIs
+ini_set('memory_limit', '256M');
+
 // Definir zona horaria
 date_default_timezone_set('Europe/Madrid');
 
 // Constantes de configuración
 define('PROJECT_NAME', 'Portal Integral de Salud');
 define('PROJECT_VERSION', '1.0');
-define('API_TIMEOUT', 10);
+define('API_TIMEOUT', 5); // Reducido de 10 a 5 segundos para respuesta más rápida
 define('CACHE_ENABLED', true);
 define('CACHE_DIR', __DIR__ . '/../data/cache/');
 
@@ -28,13 +31,13 @@ function makeHTTPRequest($url, $timeout = API_TIMEOUT) {
             'timeout' => $timeout,
             'method' => 'GET',
             'header' => 'User-Agent: ' . PROJECT_NAME . '/' . PROJECT_VERSION,
-            'ignore_errors' => false
+            'ignore_errors' => true
         ],
         'https' => [
             'timeout' => $timeout,
             'method' => 'GET',
             'header' => 'User-Agent: ' . PROJECT_NAME . '/' . PROJECT_VERSION,
-            'ignore_errors' => false,
+            'ignore_errors' => true,
             'verify_peer' => false,
             'verify_peer_name' => false
         ]
@@ -43,7 +46,9 @@ function makeHTTPRequest($url, $timeout = API_TIMEOUT) {
     try {
         $response = @file_get_contents($url, false, $context);
         if ($response === false) {
-            return array('success' => false, 'error' => 'No se pudo conectar con la API');
+            $error = error_get_last();
+            $errorMsg = isset($error['message']) ? $error['message'] : 'No se pudo conectar con la API';
+            return array('success' => false, 'error' => $errorMsg);
         }
         return array('success' => true, 'data' => $response);
     } catch (Exception $e) {
